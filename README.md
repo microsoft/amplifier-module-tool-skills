@@ -17,22 +17,19 @@ This module brings Anthropic Skills support to Amplifier, enabling:
 # 1. Clone Anthropic's skills repository
 git clone https://github.com/anthropics/skills ~/anthropic-skills
 
-# 2. Install this module
-cd amplifier-module-tool-skills
-uv pip install -e .
+# 2. Add tool-skills module source to your settings
+amplifier source add tool-skills git+https://github.com/microsoft/amplifier-module-tool-skills@main
 
-# 3. Configure in your Amplifier profile
-cat >> .amplifier/profiles/my-profile.md << 'EOF'
-tools:
-  - module: tool-skills
-    config:
-      skills_dirs:
-        - ~/anthropic-skills
-        - .amplifier/skills
+# 3. Configure skills directories in your settings
+cat >> ~/.amplifier/settings.yaml << 'EOF'
+skills:
+  dirs:
+    - ~/anthropic-skills
+    - ~/.amplifier/skills
 EOF
 
-# 4. Use with Amplifier
-amplifier run --profile my-profile "List available skills"
+# 4. Use with any Amplifier profile that includes tools
+amplifier run "List available skills"
 ```
 
 All Anthropic skills are now available to your agent!
@@ -113,33 +110,48 @@ Load domain knowledge from an available skill.
 
 ## Configuration
 
-### With context-skills (Recommended)
+### Global Configuration (Recommended)
 
-Configure skills once in the context section - tool-skills reads from capability:
+Add to `~/.amplifier/settings.yaml` for all profiles:
 
 ```yaml
-session:
-  context:
-    module: context-skills
-    source: git+https://github.com/robotdad/amplifier-module-context-skills@main
-    config:
-      skills_dirs:  # Single configuration
-        - ~/anthropic-skills
-        - .amplifier/skills
+# Module source
+sources:
+  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
 
-tools:
-  - module: tool-skills
-    source: git+https://github.com/robotdad/amplifier-module-tool-skills@main
+# Skills directories
+skills:
+  dirs:
+    - ~/anthropic-skills
+    - ~/.amplifier/skills
 ```
 
-### Standalone (Without context-skills)
+### Project-Specific Configuration
+
+Add to `.amplifier/settings.local.yaml` for project-only settings:
+
+```yaml
+# Module source override
+sources:
+  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
+
+# Project skills directories
+skills:
+  dirs:
+    - ~/anthropic-skills
+    - .amplifier/skills  # Project-specific skills
+```
+
+### Profile Configuration (Alternative)
+
+Configure in individual profiles if needed:
 
 ```yaml
 tools:
   - module: tool-skills
-    source: git+https://github.com/robotdad/amplifier-module-tool-skills@main
+    source: git+https://github.com/microsoft/amplifier-module-tool-skills@main
     config:
-      skills_dirs:  # Configure directly if not using context-skills
+      skills_dirs:
         - ~/anthropic-skills
         - .amplifier/skills
 ```
@@ -152,11 +164,13 @@ tools:
 # Clone Anthropic's skills repository
 git clone https://github.com/anthropics/skills ~/anthropic-skills
 
-# Add to your profile
+# Add to your settings
+cat >> ~/.amplifier/settings.yaml << 'EOF'
 skills:
   dirs:
     - ~/anthropic-skills
-    - .amplifier/skills
+    - ~/.amplifier/skills
+EOF
 ```
 
 All skills from both directories become available to the agent.
@@ -218,20 +232,18 @@ Instructions the agent follows when skill is loaded.
 
 ## Usage Examples
 
-### In Agent Definition
+### In Profile Definition
 
 ```markdown
 ---
-meta:
+profile:
   name: module-creator
   description: Creates new Amplifier modules
 
 tools:
   - module: tool-filesystem
   - module: tool-bash
-  - module: tool-skills  # Enable skills
-    config:
-      skills_dir: .amplifier/skills
+  - module: tool-skills
 ---
 
 You are an Amplifier module creator.
@@ -240,6 +252,8 @@ Before creating modules:
 1. Call load_skill(list=true) to see available guidelines
 2. Load module-development skill for patterns
 3. Follow the guidance from the skill
+
+Skills are configured globally in ~/.amplifier/settings.yaml
 ```
 
 ### Agent Workflow
@@ -276,21 +290,20 @@ result = await tool.execute({"skill_name": "python-standards"})
 
 ## Integration with context-skills
 
-**Recommended:** Use with `amplifier-module-context-skills` for best experience.
+**Optional:** Use with `amplifier-module-context-skills` for enhanced skill management.
 
-Configure skills once - tool-skills reads from context capability:
+Configure skills once via settings - tool-skills reads from context capability:
 
 ```yaml
-session:
-  context:
-    module: context-skills
-    config:
-      skills_dirs:  # Single configuration point
-        - ~/anthropic-skills
-        - .amplifier/skills
+# In ~/.amplifier/settings.yaml
+sources:
+  context-skills: git+https://github.com/microsoft/amplifier-module-context-skills@main
+  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
 
-tools:
-  - module: tool-skills  # No config - reads from capability
+skills:
+  dirs:
+    - ~/anthropic-skills
+    - ~/.amplifier/skills
 ```
 
 **How they work together:**
@@ -299,7 +312,7 @@ tools:
 3. Agent sees skills automatically and can load on demand
 4. Context tracks loaded skills (prevents redundant loading)
 
-**Single configuration** via capability registry - no duplication needed.
+**Single configuration** via settings - no duplication needed.
 
 ## Creating Skills
 
@@ -364,27 +377,66 @@ echo "# Examples" > examples.md
 ## Testing
 
 ```bash
-# Run unit tests
-make test
+# Run all tests
+uv run pytest
 
 # Run specific test
 uv run pytest tests/test_tool.py::test_list_skills -v
 
-# Run integration tests
-uv run pytest tests/test_integration.py -v
+# Run with coverage
+uv run pytest --cov
 ```
 
-## Development
+## Local Development
+
+### For Module Developers
+
+If you're developing the tool-skills module itself:
+
+**Option 1: Source Override (Recommended)**
+
+```bash
+# Add local source override
+amplifier source add tool-skills "file://$(pwd)"
+
+# Or edit ~/.amplifier/settings.yaml manually:
+# sources:
+#   tool-skills: file:///absolute/path/to/amplifier-module-tool-skills
+```
+
+**Option 2: Workspace Convention**
+
+```bash
+# In your development workspace
+mkdir -p .amplifier/modules
+ln -s /path/to/amplifier-module-tool-skills .amplifier/modules/tool-skills
+
+# Module automatically discovered
+amplifier module show tool-skills
+```
+
+**Option 3: Environment Variable (Temporary)**
+
+```bash
+export AMPLIFIER_MODULE_TOOL_SKILLS=/path/to/amplifier-module-tool-skills
+amplifier run "test"
+```
+
+### Testing Your Changes
 
 ```bash
 # Install dependencies
-make install
+uv sync
+
+# Run tests
+uv run pytest
 
 # Format and check code
-make check
+uv run ruff check .
+uv run ruff format .
 
-# Run all tests
-make test
+# Type checking
+uv run pyright
 ```
 
 ## Dependencies
