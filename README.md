@@ -55,8 +55,8 @@ Provides explicit skill discovery and loading capabilities for Amplifier agents.
 
 ## Contract
 
-**Module Type:** Tool
-**Mount Point:** `tools`
+**Module Type:** Tool  
+**Mount Point:** `tools`  
 **Entry Point:** `amplifier_module_tool_skills:mount`
 
 ## What Are Skills?

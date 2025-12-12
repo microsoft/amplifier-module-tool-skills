@@ -15,7 +15,7 @@ dependencies = [
 
 [[package]]
 name = "amplifier-module-tool-skills"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "amplifier-core" },

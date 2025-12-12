@@ -5,17 +5,21 @@ Provides explicit skill discovery and loading capabilities.
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from amplifier_core import ToolResult
 from amplifier_module_tool_skills.discovery import discover_skills
 from amplifier_module_tool_skills.discovery import discover_skills_multi_source
 from amplifier_module_tool_skills.discovery import extract_skill_body
 from amplifier_module_tool_skills.discovery import get_default_skills_dirs
 
+if TYPE_CHECKING:
+    from amplifier_core import ModuleCoordinator
+
 logger = logging.getLogger(__name__)
 
 
-async def mount(coordinator: Any, config: dict[str, Any] | None = None) -> None:
+async def mount(coordinator: "ModuleCoordinator", config: dict[str, Any] | None = None) -> None:
     """
     Mount the skills tool.
 
@@ -67,46 +71,67 @@ class SkillsTool:
         "files referenced in the skill (e.g., skill_directory + '/reference/file.md')."
     )
 
-    def __init__(self, config: dict[str, Any], coordinator: Any | None = None):
-        """
-        Initialize skills tool.
-
+    def __init__(self, config: dict[str, Any], coordinator: "ModuleCoordinator | None" = None):
+        """Initialize skills tool.
+        
         Args:
             config: Tool configuration
             coordinator: Module coordinator for event emission (optional)
         """
         self.config = config
         self.coordinator = coordinator
+        self.skills_dirs, self.skills = self._initialize_skills()
 
-        # Try to use skills from context-skills capability first
-        skills_from_context = coordinator.get_capability("skills.registry") if coordinator else None
-        skills_dirs_from_context = coordinator.get_capability("skills.directories") if coordinator else None
+    def _initialize_skills(self) -> tuple[list[Path], dict[str, Any]]:
+        """Initialize skills from capability, config, or defaults.
+        
+        Priority order:
+        1. Coordinator capability (reuse existing discovery)
+        2. Config 'skills_dirs' or 'skills_dir'
+        3. Default directories
+        
+        Returns:
+            Tuple of (skills directories, discovered skills)
+        """
+        # Try capability first
+        if self.coordinator:
+            skills = self.coordinator.get_capability("skills.registry")
+            dirs = self.coordinator.get_capability("skills.directories")
+            if skills and dirs:
+                logger.info(
+                    f"Using skills from context capability: {len(skills)} skills from {len(dirs)} directories"
+                )
+                return dirs, skills
+        
+        # Try config
+        dirs = self._get_dirs_from_config()
+        if dirs:
+            skills = discover_skills_multi_source(dirs)
+            logger.info(f"Discovered {len(skills)} skills from module config")
+            return dirs, skills
+        
+        # Fall back to defaults
+        dirs = get_default_skills_dirs()
+        skills = discover_skills_multi_source(dirs)
+        logger.info(f"Discovered {len(skills)} skills from default directories")
+        return dirs, skills
 
-        if skills_from_context and skills_dirs_from_context:
-            # Reuse discovery from context-skills module
-            self.skills = skills_from_context
-            self.skills_dirs = skills_dirs_from_context
-            logger.info(
-                f"Using skills from context capability: {len(self.skills)} skills from {len(self.skills_dirs)} directories"
-            )
-        elif "skills_dirs" in config:
-            # Fall back to own configuration
-            skills_dirs = config["skills_dirs"]
-            if isinstance(skills_dirs, str):
-                skills_dirs = [skills_dirs]
-            self.skills_dirs = [Path(d).expanduser() for d in skills_dirs]
-            self.skills = discover_skills_multi_source(self.skills_dirs)
-            logger.info(f"Discovered {len(self.skills)} skills from module config")
-        elif "skills_dir" in config:
-            # Single directory from config
-            self.skills_dirs = [Path(config["skills_dir"]).expanduser()]
-            self.skills = discover_skills(self.skills_dirs[0])
-            logger.info(f"Discovered {len(self.skills)} skills from module config")
-        else:
-            # Fall back to default
-            self.skills_dirs = get_default_skills_dirs()
-            self.skills = discover_skills_multi_source(self.skills_dirs)
-            logger.info(f"Discovered {len(self.skills)} skills from default directories")
+    def _get_dirs_from_config(self) -> list[Path] | None:
+        """Extract skills directories from config.
+        
+        Returns:
+            List of paths if found in config, None otherwise
+        """
+        if "skills_dirs" in self.config:
+            dirs = self.config["skills_dirs"]
+            if isinstance(dirs, str):
+                dirs = [dirs]
+            return [Path(d).expanduser() for d in dirs]
+        
+        if "skills_dir" in self.config:
+            return [Path(self.config["skills_dir"]).expanduser()]
+        
+        return None
 
     @property
     def input_schema(self) -> dict:
@@ -127,7 +152,7 @@ class SkillsTool:
             },
         }
 
-    async def execute(self, input: dict[str, Any]) -> Any:
+    async def execute(self, input: dict[str, Any]) -> ToolResult:
         """
         Execute skill tool operation.
 
@@ -137,9 +162,6 @@ class SkillsTool:
         Returns:
             Tool result with skill content or list
         """
-        # Import here to avoid circular dependency
-        from amplifier_core import ToolResult
-
         # List mode
         if input.get("list"):
             return self._list_skills()
@@ -161,10 +183,8 @@ class SkillsTool:
 
         return await self._load_skill(skill_name)
 
-    def _list_skills(self) -> Any:
+    def _list_skills(self) -> ToolResult:
         """List all available skills."""
-        from amplifier_core import ToolResult
-
         if not self.skills:
             sources = ", ".join(str(d) for d in self.skills_dirs)
             return ToolResult(success=True, output={"message": f"No skills found in {sources}"})
@@ -179,10 +199,8 @@ class SkillsTool:
 
         return ToolResult(success=True, output={"message": "\n".join(lines), "skills": skills_list})
 
-    def _search_skills(self, search_term: str) -> Any:
+    def _search_skills(self, search_term: str) -> ToolResult:
         """Search skills by name or description."""
-        from amplifier_core import ToolResult
-
         matches = {}
         for name, metadata in self.skills.items():
             if search_term.lower() in name.lower() or search_term.lower() in metadata.description.lower():
@@ -199,10 +217,8 @@ class SkillsTool:
 
         return ToolResult(success=True, output={"message": "\n".join(lines), "matches": results})
 
-    def _get_skill_info(self, skill_name: str) -> Any:
+    def _get_skill_info(self, skill_name: str) -> ToolResult:
         """Get metadata for a skill without loading full content."""
-        from amplifier_core import ToolResult
-
         if skill_name not in self.skills:
             available = ", ".join(sorted(self.skills.keys()))
             return ToolResult(
@@ -223,10 +239,8 @@ class SkillsTool:
 
         return ToolResult(success=True, output=info)
 
-    async def _load_skill(self, skill_name: str) -> Any:
+    async def _load_skill(self, skill_name: str) -> ToolResult:
         """Load full skill content."""
-        from amplifier_core import ToolResult
-
         if skill_name not in self.skills:
             available = ", ".join(sorted(self.skills.keys()))
             return ToolResult(

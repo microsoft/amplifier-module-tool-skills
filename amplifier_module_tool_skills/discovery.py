@@ -44,7 +44,7 @@ def parse_skill_frontmatter(skill_path: Path) -> dict[str, Any] | None:
     """
     try:
         content = skill_path.read_text(encoding="utf-8")
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         logger.warning(f"Failed to read {skill_path}: {e}")
         return None
 
@@ -80,7 +80,7 @@ def extract_skill_body(skill_path: Path) -> str | None:
     """
     try:
         content = skill_path.read_text(encoding="utf-8")
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         logger.warning(f"Failed to read {skill_path}: {e}")
         return None
 
@@ -167,7 +167,7 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
             skills[name] = metadata
             logger.debug(f"Discovered skill: {name} at {skill_file}")
 
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.warning(f"Error processing {skill_file}: {e}")
             continue
 
