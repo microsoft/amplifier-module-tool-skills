@@ -28,6 +28,15 @@ async def mount(coordinator: Any, config: dict[str, Any] | None = None) -> None:
     """
     config = config or {}
     logger.info(f"Mounting SkillsTool with config: {config}")
+    
+    # Declare observable events for hooks-logging auto-discovery
+    obs_events = coordinator.get_capability("observability.events") or []
+    obs_events.extend([
+        "skills:discovered",  # When skills are found during mount
+        "skill:loaded",       # When skill loaded successfully
+    ])
+    coordinator.register_capability("observability.events", obs_events)
+    
     tool = SkillsTool(config, coordinator)
     await coordinator.mount("tools", tool, name=tool.name)
     logger.info(f"Mounted SkillsTool with {len(tool.skills)} skills from {len(tool.skills_dirs)} sources")
