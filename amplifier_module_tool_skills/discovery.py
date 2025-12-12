@@ -5,6 +5,7 @@ Shared utilities for finding and parsing SKILL.md files.
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,9 @@ from typing import Any
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Pattern for valid skill names per Anthropic Skills Spec
+VALID_NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
 @dataclass
@@ -24,6 +28,7 @@ class SkillMetadata:
     source: str  # Which directory/source this came from
     version: str | None = None
     license: str | None = None
+    allowed_tools: list[str] | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -126,6 +131,27 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
                 logger.warning(f"Skipping {skill_file} - missing required fields (name, description)")
                 continue
 
+            # Validate name format (per Anthropic Skills Spec)
+            if not VALID_NAME_PATTERN.match(name):
+                logger.warning(
+                    f"Skill '{name}' at {skill_file} has invalid name format. "
+                    f"Names should be lowercase alphanumeric with hyphens (e.g., 'my-skill'). "
+                    f"Continuing with discovery."
+                )
+
+            # Validate directory name matches skill name (per Anthropic Skills Spec)
+            parent_dir_name = skill_file.parent.name
+            if name != parent_dir_name:
+                logger.warning(
+                    f"Skill '{name}' at {skill_file} has mismatched directory name. "
+                    f"Expected directory '{name}', but found '{parent_dir_name}'. "
+                    f"Per Anthropic Skills Spec, the skill name should match the directory name. "
+                    f"Continuing with discovery."
+                )
+
+            # Parse allowed-tools (note: YAML uses hyphen, Python uses underscore)
+            allowed_tools = frontmatter.get("allowed-tools")
+
             # Create metadata
             metadata = SkillMetadata(
                 name=name,
@@ -134,6 +160,7 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
                 source=str(skills_dir),
                 version=frontmatter.get("version"),
                 license=frontmatter.get("license"),
+                allowed_tools=allowed_tools,
                 metadata=frontmatter.get("metadata"),
             )
 
