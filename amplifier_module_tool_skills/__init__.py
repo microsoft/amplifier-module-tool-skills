@@ -119,9 +119,15 @@ class SkillsTool:
     def _get_dirs_from_config(self) -> list[Path] | None:
         """Extract skills directories from config.
         
+        Priority order:
+        1. Module config (per-profile override)
+        2. Global/project settings via coordinator.config
+        3. None (falls back to defaults)
+        
         Returns:
             List of paths if found in config, None otherwise
         """
+        # 1. Check module-level config (per-profile override)
         if "skills_dirs" in self.config:
             dirs = self.config["skills_dirs"]
             if isinstance(dirs, str):
@@ -131,6 +137,16 @@ class SkillsTool:
         if "skills_dir" in self.config:
             return [Path(self.config["skills_dir"]).expanduser()]
         
+        # 2. Check global/project settings via coordinator
+        if self.coordinator:
+            global_config = self.coordinator.config.get('skills', {}).get('dirs')
+            if global_config:
+                if isinstance(global_config, str):
+                    global_config = [global_config]
+                logger.info(f"Using skills directories from settings: {global_config}")
+                return [Path(d).expanduser() for d in global_config]
+        
+        # 3. Return None to use defaults
         return None
 
     @property

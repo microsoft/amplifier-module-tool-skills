@@ -14,21 +14,26 @@ This module brings Anthropic Skills support to Amplifier, enabling:
 ## Quick Start with Anthropic Skills
 
 ```bash
-# 1. Clone Anthropic's skills repository
+# 1. Clone Anthropic's skills repository (optional)
 git clone https://github.com/anthropics/skills ~/anthropic-skills
 
-# 2. Add tool-skills module source to your settings
-amplifier source add tool-skills git+https://github.com/microsoft/amplifier-module-tool-skills@main
-
-# 3. Configure skills directories in your settings
+# 2. Configure in settings.yaml (one-time setup)
 cat >> ~/.amplifier/settings.yaml << 'EOF'
+sources:
+  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
+
 skills:
   dirs:
-    - ~/anthropic-skills
+    - ~/anthropic-skills/skills
     - ~/.amplifier/skills
 EOF
 
-# 4. Use with any Amplifier profile that includes tools
+# 3. Add tool to your profile
+# In your profile's frontmatter:
+# tools:
+#   - module: tool-skills
+
+# 4. Use in any session
 amplifier run "List available skills"
 ```
 
@@ -110,53 +115,69 @@ Load domain knowledge from an available skill.
 
 ## Configuration
 
-### Global Configuration (Recommended)
+### Recommended: Global Configuration via Settings
 
-Add to `~/.amplifier/settings.yaml` for all profiles:
+Add to `~/.amplifier/settings.yaml` to make skills available to **all profiles automatically**:
 
 ```yaml
 # Module source
 sources:
   tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
 
-# Skills directories
+# Skills directories - applies to all profiles
 skills:
   dirs:
-    - ~/anthropic-skills
-    - ~/.amplifier/skills
+    - ~/anthropic-skills/skills  # Optional: Anthropic's skills collection
+    - ~/.amplifier/skills         # User-specific skills
 ```
+
+Then add the tool to any profile:
+
+```yaml
+# In any profile
+tools:
+  - module: tool-skills  # No config needed - reads from settings.yaml
+```
+
+**That's it!** All profiles using tool-skills now have access to your configured skills directories.
 
 ### Project-Specific Configuration
 
-Add to `.amplifier/settings.local.yaml` for project-only settings:
+Add to `.amplifier/settings.local.yaml` for project-only skills:
 
 ```yaml
-# Module source override
-sources:
-  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
-
-# Project skills directories
+# Project skills directories (merged with global)
 skills:
   dirs:
-    - ~/anthropic-skills
     - .amplifier/skills  # Project-specific skills
 ```
 
-### Profile Configuration (Alternative)
+### Per-Profile Override (Advanced)
 
-Configure in individual profiles if needed:
+Override skills directories for a specific profile:
 
 ```yaml
 tools:
   - module: tool-skills
-    source: git+https://github.com/microsoft/amplifier-module-tool-skills@main
     config:
-      skills_dirs:
-        - ~/anthropic-skills
-        - .amplifier/skills
+      skills_dirs:  # Override - ignores settings.yaml for this profile
+        - /special/skills/dir
 ```
 
-**Default:** If not configured, uses `.amplifier/skills`
+### Configuration Priority
+
+The tool reads skills directories in this order:
+
+1. **Profile config** (`skills_dirs` in profile tool config) - highest priority
+2. **Settings.yaml** (`skills.dirs` in global/project settings) - **recommended**
+3. **Defaults** (`.amplifier/skills` and `~/.amplifier/skills`) - fallback
+
+### Default Directories
+
+If not configured anywhere, the tool searches:
+- `.amplifier/skills/` (workspace)
+- `~/.amplifier/skills/` (user home)
+- `$AMPLIFIER_SKILLS_DIR` (environment variable)
 
 ### Using Anthropic Skills
 
@@ -168,7 +189,7 @@ git clone https://github.com/anthropics/skills ~/anthropic-skills
 cat >> ~/.amplifier/settings.yaml << 'EOF'
 skills:
   dirs:
-    - ~/anthropic-skills
+    - ~/anthropic-skills/skills
     - ~/.amplifier/skills
 EOF
 ```
@@ -288,31 +309,39 @@ result = await tool.execute({"skill_name": "python-standards"})
 # Only loaded if agent needs it
 ```
 
-## Integration with context-skills
+## Integration with context-skills (Optional)
 
-**Optional:** Use with `amplifier-module-context-skills` for enhanced skill management.
+**Advanced:** Use with `amplifier-module-context-skills` for automatic skills metadata injection.
 
-Configure skills once via settings - tool-skills reads from context capability:
+The `context-skills` module wraps your context manager and automatically shows available skills in the system message without requiring the agent to call `load_skill(list=true)` first.
 
 ```yaml
-# In ~/.amplifier/settings.yaml
-sources:
-  context-skills: git+https://github.com/microsoft/amplifier-module-context-skills@main
-  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
+# In profile with context-skills
+session:
+  context:
+    module: context-skills
+    config:
+      base_context: context-simple
+      auto_inject_metadata: true
 
-skills:
-  dirs:
-    - ~/anthropic-skills
-    - ~/.amplifier/skills
+tools:
+  - module: tool-skills  # Reads from settings.yaml
 ```
 
 **How they work together:**
-1. Context discovers skills and registers capability
-2. Tool reads from capability (no duplicate discovery)
-3. Agent sees skills automatically and can load on demand
+1. Both modules read skills directories from `settings.yaml`
+2. Context auto-injects skills list into system message
+3. Tool provides `load_skill` for on-demand full content loading
 4. Context tracks loaded skills (prevents redundant loading)
 
-**Single configuration** via settings - no duplication needed.
+**When to use context-skills:**
+- You want skills visible in system message automatically
+- You don't want to spend the first tool call on listing skills
+
+**When to use tool-skills alone (recommended):**
+- Simpler setup (one module instead of two)
+- Agent calls `load_skill(list=true)` first (one tool call)
+- Most use cases don't need auto-injection
 
 ## Creating Skills
 
