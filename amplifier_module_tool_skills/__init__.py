@@ -114,26 +114,15 @@ Skill Discovery:
         self.skills_dirs, self.skills = self._initialize_skills()
 
     def _initialize_skills(self) -> tuple[list[Path], dict[str, Any]]:
-        """Initialize skills from capability, config, or defaults.
+        """Initialize skills from config or defaults.
         
         Priority order:
-        1. Coordinator capability (reuse existing discovery)
-        2. Config 'skills_dirs' or 'skills_dir'
-        3. Default directories
+        1. Config 'skills_dirs' or 'skills_dir'
+        2. Default directories
         
         Returns:
             Tuple of (skills directories, discovered skills)
         """
-        # Try capability first
-        if self.coordinator:
-            skills = self.coordinator.get_capability("skills.registry")
-            dirs = self.coordinator.get_capability("skills.directories")
-            if skills and dirs:
-                logger.info(
-                    f"Using skills from context capability: {len(skills)} skills from {len(dirs)} directories"
-                )
-                return dirs, skills
-        
         # Try config
         dirs = self._get_dirs_from_config()
         if dirs:
@@ -294,30 +283,6 @@ Skill Discovery:
                 success=False, error={"message": f"Skill '{skill_name}' not found. Available: {available}"}
             )
 
-        # Check context if available
-        if self.coordinator:
-            context = self.coordinator.get("context")
-            if context and hasattr(context, "is_skill_loaded"):
-                # Check if already loaded
-                if context.is_skill_loaded(skill_name):
-                    return ToolResult(
-                        success=True,
-                        output={
-                            "message": f"Skill '{skill_name}' is already loaded in context",
-                            "skill_name": skill_name,
-                            "already_loaded": True,
-                        },
-                    )
-
-                # Check if can load another skill
-                if hasattr(context, "can_load_skill"):
-                    can_load, warning = context.can_load_skill()
-                    if not can_load:
-                        return ToolResult(success=False, error={"message": warning or "Cannot load more skills"})
-
-                    if warning:
-                        logger.warning(warning)
-
         metadata = self.skills[skill_name]
         body = extract_skill_body(metadata.path)
 
@@ -325,12 +290,6 @@ Skill Discovery:
             return ToolResult(success=False, error={"message": f"Failed to load content from {metadata.path}"})
 
         logger.info(f"Loaded skill: {skill_name}")
-
-        # Mark as loaded in context if available
-        if self.coordinator:
-            context = self.coordinator.get("context")
-            if context and hasattr(context, "mark_skill_loaded"):
-                context.mark_skill_loaded(skill_name)
 
         # Emit skill loaded event
         if self.coordinator:

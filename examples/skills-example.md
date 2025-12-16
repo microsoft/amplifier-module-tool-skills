@@ -9,15 +9,9 @@ session:
     module: loop-streaming
     source: git+https://github.com/microsoft/amplifier-module-loop-streaming@main
   context:
-    module: context-skills
-    source: git+https://github.com/robotdad/amplifier-module-context-skills@main
+    module: context-simple
+    source: git+https://github.com/microsoft/amplifier-module-context-simple@main
     config:
-      base_context: context-simple
-      base_context_source: git+https://github.com/microsoft/amplifier-module-context-simple@main
-      skills_dirs:  # Single configuration - tool-skills reads from capability
-        - .amplifier/skills
-        # - ~/anthropic-skills  # Uncomment if you cloned github.com/anthropics/skills
-      auto_inject_metadata: true
       max_tokens: 200000
 
 providers:
@@ -34,7 +28,10 @@ tools:
     source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
   - module: tool-skills
     source: git+https://github.com/robotdad/amplifier-module-tool-skills@main
-    # No config needed - reads from context-skills capability
+    config:
+      skills_dirs:
+        - .amplifier/skills
+        # - ~/anthropic-skills  # Uncomment if you cloned github.com/anthropics/skills
 
 hooks:
   - module: hooks-streaming-ui
@@ -50,7 +47,7 @@ This profile demonstrates Amplifier's support for [Anthropic Skills](https://git
 ## What This Enables
 
 Skills provide progressive disclosure of domain knowledge:
-- See available skills automatically in system instruction (via context-skills)
+- List available skills using the load_skill tool
 - Load full content only when needed (60-65% token savings)
 - Support multiple skill sources (Anthropic + your own)
 - Access companion files using skill_directory path returned by load_skill
@@ -86,15 +83,15 @@ amplifier run --profile skills-example "List available skills"
 ## Workflow
 
 When working with skills:
-1. Available skills listed in system instruction (automatic)
-2. Load when needed: use `load_skill` tool
+1. List available skills: `load_skill(list=true)`
+2. Load when needed: `load_skill(skill_name="skill-name")`
 3. Follow guidelines from loaded skills
 4. Skills persist across conversation turns
 
 ## Configuration
 
-**Default**: Looks for skills in `.amplifier/skills/`
+**Default**: Configured to look in `.amplifier/skills/`
 
-**Multiple sources**: Uncomment `~/anthropic-skills` to add Anthropic's skill library
+**Multiple sources**: Uncomment `~/anthropic-skills` in the tools config to add Anthropic's skill library
 
-**Custom locations**: Edit `skills_dirs` to point to your skill directories
+**Custom locations**: Edit `skills_dirs` in the tool-skills config to point to your skill directories

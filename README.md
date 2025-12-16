@@ -322,10 +322,6 @@ echo "# Patterns Guide" > patterns.md
 echo "# Examples" > examples.md
 ```
 
-## Advanced Integration
-
-**Optional:** Use with `amplifier-module-context-skills` to auto-inject skills metadata into the system message. Most use cases don't need this - the agent can call `load_skill(list=true)` as its first action. See [amplifier-module-context-skills](https://github.com/robotdad/amplifier-module-context-skills) for details.
-
 ## Testing
 
 ```bash

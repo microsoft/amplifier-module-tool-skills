@@ -107,51 +107,18 @@ EOF
 
 ## Integration Patterns
 
-### With Context-Skills Module
-
-Automatic metadata injection:
-
-```yaml
-session:
-  context: context-skills
-  config:
-    auto_inject_metadata: true
-```
-
-Agent sees:
-```
-## Available Skills
-
-**skill-name**: Description of what it does...
-```
-
-### Complete Configuration (Recommended)
-
-Configure skills once in context - tool reads from capability:
-
-```yaml
-session:
-  context:
-    module: context-skills
-    config:
-      skills_dirs:  # Single configuration point
-        - ~/anthropic-skills
-        - .amplifier/skills
-
-tools:
-  - module: tool-skills  # No config - reads from capability
-```
-
 ### Using Anthropic Skills
 
 ```bash
 # Clone Anthropic's skills repository
 git clone https://github.com/anthropics/skills ~/anthropic-skills
 
-# Update profile context config
-session:
-  context:
-    module: context-skills
+# Configure tool-skills to use both directories
+```
+
+```yaml
+tools:
+  - module: tool-skills
     config:
       skills_dirs:
         - ~/anthropic-skills
@@ -159,21 +126,11 @@ session:
 ```
 
 All skills from both directories become available. The agent can:
-- See available skills (automatic via context)
 - List: `load_skill(list=true)`
 - Search: `load_skill(search="python")`
 - Load: `load_skill(skill_name="skill-name")`
 
-### Together (Recommended)
-
-```yaml
-session:
-  context: context-skills  # Discovery
-tools:
-  - module: tool-skills    # Loading
-```
-
 **Result:**
-- Agent sees what's available (context)
-- Agent loads when needed (tool)
+- Agent lists available skills when needed
+- Agent loads full content on-demand
 - 60-65% token savings from progressive disclosure
