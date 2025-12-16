@@ -62,14 +62,45 @@ class SkillsTool:
     """Tool for loading domain knowledge from skills."""
 
     name = "load_skill"
-    description = (
-        "Load domain knowledge from an available skill. Skills provide "
-        "specialized knowledge, workflows, best practices, and standards. "
-        "Use when you need domain expertise, coding guidelines, or "
-        "architectural patterns. Call with list=true to see all skills. "
-        "When loaded, returns skill_directory path - use this to read companion "
-        "files referenced in the skill (e.g., skill_directory + '/reference/file.md')."
-    )
+    description = """
+Load domain knowledge from an available skill. Skills provide specialized knowledge, workflows, 
+best practices, and standards. Use when you need domain expertise, coding guidelines, or 
+architectural patterns.
+
+Operations:
+
+**List all skills:**
+  load_skill(list=True)
+  Returns a formatted list of all available skills with descriptions.
+
+**Search for skills:**
+  load_skill(search="pattern")
+  Filters skills by name or description matching the search term.
+
+**Get skill metadata:**
+  load_skill(info="skill-name")
+  Returns metadata (name, description, version, license, path) without loading full content.
+  Use this to check details before loading or when you just need basic information.
+
+**Load full skill content:**
+  load_skill(skill_name="skill-name")
+  Loads the complete skill content into context. Returns skill_directory path for accessing
+  companion files referenced in the skill.
+
+Usage Guidelines:
+- Start tasks by listing or searching skills to discover relevant domain knowledge
+- Use info operation to check skills before loading to conserve context
+- Skills may reference companion files - use the returned skill_directory path with read_file tool
+  Example: If skill returns skill_directory="/path/to/skill", you can read companion files with
+  read_file(skill_directory + "/examples/code.py")
+- Skills complement but don't replace documentation or web search - use for standardized workflows
+  and best practices specific to the skill domain
+
+Skill Discovery:
+- Skills are discovered from configured directories (workspace, user, or custom paths)
+- First-match-wins priority if same skill exists in multiple directories
+- Workspace skills (.amplifier/skills/) override user skills (~/.amplifier/skills/)
+"""
 
     def __init__(self, config: dict[str, Any], coordinator: "ModuleCoordinator | None" = None):
         """Initialize skills tool.
@@ -83,26 +114,15 @@ class SkillsTool:
         self.skills_dirs, self.skills = self._initialize_skills()
 
     def _initialize_skills(self) -> tuple[list[Path], dict[str, Any]]:
-        """Initialize skills from capability, config, or defaults.
+        """Initialize skills from config or defaults.
         
         Priority order:
-        1. Coordinator capability (reuse existing discovery)
-        2. Config 'skills_dirs' or 'skills_dir'
-        3. Default directories
+        1. Config 'skills_dirs' or 'skills_dir'
+        2. Default directories
         
         Returns:
             Tuple of (skills directories, discovered skills)
         """
-        # Try capability first
-        if self.coordinator:
-            skills = self.coordinator.get_capability("skills.registry")
-            dirs = self.coordinator.get_capability("skills.directories")
-            if skills and dirs:
-                logger.info(
-                    f"Using skills from context capability: {len(skills)} skills from {len(dirs)} directories"
-                )
-                return dirs, skills
-        
         # Try config
         dirs = self._get_dirs_from_config()
         if dirs:
@@ -119,9 +139,15 @@ class SkillsTool:
     def _get_dirs_from_config(self) -> list[Path] | None:
         """Extract skills directories from config.
         
+        Priority order:
+        1. Module config (per-profile override)
+        2. Global/project settings via coordinator.config
+        3. None (falls back to defaults)
+        
         Returns:
             List of paths if found in config, None otherwise
         """
+        # 1. Check module-level config (per-profile override)
         if "skills_dirs" in self.config:
             dirs = self.config["skills_dirs"]
             if isinstance(dirs, str):
@@ -131,6 +157,16 @@ class SkillsTool:
         if "skills_dir" in self.config:
             return [Path(self.config["skills_dir"]).expanduser()]
         
+        # 2. Check global/project settings via coordinator
+        if self.coordinator:
+            global_config = self.coordinator.config.get('skills', {}).get('dirs')
+            if global_config:
+                if isinstance(global_config, str):
+                    global_config = [global_config]
+                logger.info(f"Using skills directories from settings: {global_config}")
+                return [Path(d).expanduser() for d in global_config]
+        
+        # 3. Return None to use defaults
         return None
 
     @property
@@ -247,30 +283,6 @@ class SkillsTool:
                 success=False, error={"message": f"Skill '{skill_name}' not found. Available: {available}"}
             )
 
-        # Check context if available
-        if self.coordinator:
-            context = self.coordinator.get("context")
-            if context and hasattr(context, "is_skill_loaded"):
-                # Check if already loaded
-                if context.is_skill_loaded(skill_name):
-                    return ToolResult(
-                        success=True,
-                        output={
-                            "message": f"Skill '{skill_name}' is already loaded in context",
-                            "skill_name": skill_name,
-                            "already_loaded": True,
-                        },
-                    )
-
-                # Check if can load another skill
-                if hasattr(context, "can_load_skill"):
-                    can_load, warning = context.can_load_skill()
-                    if not can_load:
-                        return ToolResult(success=False, error={"message": warning or "Cannot load more skills"})
-
-                    if warning:
-                        logger.warning(warning)
-
         metadata = self.skills[skill_name]
         body = extract_skill_body(metadata.path)
 
@@ -278,12 +290,6 @@ class SkillsTool:
             return ToolResult(success=False, error={"message": f"Failed to load content from {metadata.path}"})
 
         logger.info(f"Loaded skill: {skill_name}")
-
-        # Mark as loaded in context if available
-        if self.coordinator:
-            context = self.coordinator.get("context")
-            if context and hasattr(context, "mark_skill_loaded"):
-                context.mark_skill_loaded(skill_name)
 
         # Emit skill loaded event
         if self.coordinator:

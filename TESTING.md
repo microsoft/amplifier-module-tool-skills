@@ -13,10 +13,8 @@ This guide provides complete instructions for testing the skills modules in a cl
 ```bash
 cd amplifier-dev
 
-# Install both skills modules from GitHub
-uv pip install \
-  git+https://github.com/robotdad/amplifier-module-tool-skills.git \
-  git+https://github.com/robotdad/amplifier-module-context-skills.git
+# Install tool-skills module from GitHub
+uv pip install git+https://github.com/robotdad/amplifier-module-tool-skills.git
 ```
 
 Verify installation:
@@ -26,7 +24,6 @@ uv run amplifier module list | grep -i skill
 
 Expected output:
 ```
-│ context-skills         │ context      │ context      │ Module: context-skills  │
 │ tool-skills            │ tool         │ tools        │ Module: tool-skills     │
 ```
 
@@ -209,16 +206,13 @@ session:
       max_turns: 10
       extended_thinking: false
   context:
-    module: context-skills
-    config:
-      base_context: context-simple
-      skills_dir: .amplifier/skills
-      auto_inject_metadata: true
+    module: context-simple
 
 tools:
   - module: tool-skills
     config:
-      skills_dir: .amplifier/skills
+      skills_dirs:
+        - .amplifier/skills
 ---
 
 # Skills Testing Agent
@@ -253,7 +247,7 @@ uv run amplifier profile show test-skills
 
 Expected output should show:
 - Session orchestrator: loop-basic
-- Session context: context-skills
+- Session context: context-simple
 - Tools including: tool-skills
 - Inheritance: foundation → base → dev → test-skills
 
@@ -365,8 +359,8 @@ rm -rf .amplifier/skills/
 rm .amplifier/profiles/test-skills.md
 rm amplifier.log.jsonl
 
-# Uninstall modules (optional)
-uv pip uninstall amplifier-module-tool-skills amplifier-module-context-skills
+# Uninstall module (optional)
+uv pip uninstall amplifier-module-tool-skills
 ```
 
 The modules remain in their git repos and can be reinstalled anytime.
@@ -378,7 +372,6 @@ The modules remain in their git repos and can be reinstalled anytime.
 ```bash
 # Verify installation
 uv run python -c "from amplifier_module_tool_skills import SkillsTool; print('✓ tool-skills')"
-uv run python -c "from amplifier_module_context_skills import SkillsContext; print('✓ context-skills')"
 ```
 
 ### Skills Directory Not Found
@@ -405,9 +398,9 @@ This is a known cosmetic issue in the logging/display layer. The tool functions 
 
 ### How It Works
 
-1. **Discovery**: `context-skills` scans `.amplifier/skills/` on session start
-2. **Metadata Injection**: Context adds skills list to system instruction (~100 tokens)
-3. **Explicit Loading**: Agent calls `load_skill(skill_name="...")` via `tool-skills`
+1. **Discovery**: `tool-skills` scans configured directories on initialization
+2. **List Skills**: Agent calls `load_skill(list=true)` to see available skills (~100 tokens)
+3. **Explicit Loading**: Agent calls `load_skill(skill_name="...")` to load full content
 4. **Tracking**: Context marks skills as loaded to prevent redundancy
 
 ### Token Economics
@@ -434,9 +427,8 @@ Both modules follow amplifier-dev kernel philosophy:
 
 ## Further Information
 
-- **Module Repos**:
+- **Module Repo**:
   - https://github.com/robotdad/amplifier-module-tool-skills
-  - https://github.com/robotdad/amplifier-module-context-skills
 - **Documentation**: See README.md in each module repo
 - **Example Skills**: See `tests/fixtures/skills/` in module repos
 - **Skill Format**: YAML frontmatter + Markdown body
