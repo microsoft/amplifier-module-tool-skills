@@ -114,9 +114,31 @@ tools:
         - /special/skills/dir
 ```
 
+### Bundle Configuration
+
+Bundles work identically to profiles - same configuration format:
+
+```yaml
+bundle:
+  name: my-bundle
+  version: 1.0.0
+
+tools:
+  - module: tool-skills
+    source: git+https://github.com/robotdad/amplifier-module-tool-skills@main
+    config:
+      skills_dirs:
+        - ~/.amplifier/skills
+        - ./project-skills
+```
+
+Run with: `amplifier run -B my-bundle "your prompt"`
+
+**Note:** Bundles use the same configuration priority as profiles (config → settings.yaml → defaults).
+
 ### Configuration Priority
 
-1. **Profile config** (`skills_dirs` in tool config) - highest priority
+1. **Profile/Bundle config** (`skills_dirs` in tool config) - highest priority
 2. **Settings.yaml** (`skills.dirs` in global/project settings) - recommended
 3. **Defaults** (`.amplifier/skills`, `~/.amplifier/skills`, `$AMPLIFIER_SKILLS_DIR`) - fallback
 
