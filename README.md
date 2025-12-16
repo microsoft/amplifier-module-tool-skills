@@ -2,43 +2,6 @@
 
 Tool for loading domain knowledge from skills in Amplifier.
 
-## What Are Skills?
-
-Skills are **folders of instructions, scripts, and resources that agents load dynamically to improve performance on specialized tasks** (see [Anthropic Skills](https://github.com/anthropics/skills)).
-
-This module brings Anthropic Skills support to Amplifier, enabling:
-- Progressive disclosure of domain knowledge
-- Reusable instruction packages for specialized tasks
-- Integration with Anthropic's skills ecosystem
-
-## Quick Start with Anthropic Skills
-
-```bash
-# 1. Clone Anthropic's skills repository (optional)
-git clone https://github.com/anthropics/skills ~/anthropic-skills
-
-# 2. Configure in settings.yaml (one-time setup)
-cat >> ~/.amplifier/settings.yaml << 'EOF'
-sources:
-  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
-
-skills:
-  dirs:
-    - ~/anthropic-skills/skills
-    - ~/.amplifier/skills
-EOF
-
-# 3. Add tool to your profile
-# In your profile's frontmatter:
-# tools:
-#   - module: tool-skills
-
-# 4. Use in any session
-amplifier run "List available skills"
-```
-
-All Anthropic skills are now available to your agent!
-
 ## Prerequisites
 
 - **Python 3.11+**
@@ -56,28 +19,18 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ## Purpose
 
-Provides explicit skill discovery and loading capabilities for Amplifier agents. Skills are reusable knowledge packages that provide specialized expertise, workflows, and best practices.
+Provides explicit skill discovery and loading capabilities for Amplifier agents. Skills are reusable knowledge packages that provide specialized expertise, workflows, and best practices following the [Anthropic Skills](https://github.com/anthropics/skills) format.
+
+**Progressive disclosure knowledge packages**:
+- **Level 1 (Metadata)**: Name + description (~100 tokens) - Always visible
+- **Level 2 (Content)**: Full markdown body (~1-5k tokens) - Loaded on demand
+- **Level 3 (References)**: Additional files (0 tokens until accessed)
 
 ## Contract
 
 **Module Type:** Tool  
 **Mount Point:** `tools`  
 **Entry Point:** `amplifier_module_tool_skills:mount`
-
-## What Are Skills?
-
-Skills are **progressive disclosure knowledge packages**:
-
-- **Level 1 (Metadata)**: Name + description (~100 tokens) - Always visible
-- **Level 2 (Content)**: Full markdown body (~1-5k tokens) - Loaded on demand
-- **Level 3 (References)**: Additional files (0 tokens until accessed)
-
-**Token Efficiency Example:**
-```
-Without Skills: 6000 tokens of guidelines always loaded
-With Skills: 300 tokens metadata + 2000 tokens when needed
-Savings: 60-65% token reduction
-```
 
 ## Tools Provided
 
@@ -111,13 +64,13 @@ Load domain knowledge from an available skill.
 - **List mode**: Array of `{name, description}` objects
 - **Search mode**: Filtered array of matching skills
 - **Info mode**: Metadata object (name, description, version, license, path)
-- **Load mode**: `{content, skill_name, loaded_from}` object
+- **Load mode**: `{content, skill_name, skill_directory, loaded_from}` object
 
 ## Configuration
 
-### Recommended: Global Configuration via Settings
+### Recommended: Global Configuration
 
-Add to `~/.amplifier/settings.yaml` to make skills available to **all profiles automatically**:
+Add to `~/.amplifier/settings.yaml` to make skills available to **all profiles**:
 
 ```yaml
 # Module source
@@ -139,20 +92,17 @@ tools:
   - module: tool-skills  # No config needed - reads from settings.yaml
 ```
 
-**That's it!** All profiles using tool-skills now have access to your configured skills directories.
-
 ### Project-Specific Configuration
 
 Add to `.amplifier/settings.local.yaml` for project-only skills:
 
 ```yaml
-# Project skills directories (merged with global)
 skills:
   dirs:
-    - .amplifier/skills  # Project-specific skills
+    - .amplifier/skills  # Project-specific skills (merged with global)
 ```
 
-### Per-Profile Override (Advanced)
+### Per-Profile Override
 
 Override skills directories for a specific profile:
 
@@ -166,35 +116,98 @@ tools:
 
 ### Configuration Priority
 
-The tool reads skills directories in this order:
+1. **Profile config** (`skills_dirs` in tool config) - highest priority
+2. **Settings.yaml** (`skills.dirs` in global/project settings) - recommended
+3. **Defaults** (`.amplifier/skills`, `~/.amplifier/skills`, `$AMPLIFIER_SKILLS_DIR`) - fallback
 
-1. **Profile config** (`skills_dirs` in profile tool config) - highest priority
-2. **Settings.yaml** (`skills.dirs` in global/project settings) - **recommended**
-3. **Defaults** (`.amplifier/skills` and `~/.amplifier/skills`) - fallback
+## Usage Example
 
-### Default Directories
+### In Python
 
-If not configured anywhere, the tool searches:
-- `.amplifier/skills/` (workspace)
-- `~/.amplifier/skills/` (user home)
-- `$AMPLIFIER_SKILLS_DIR` (environment variable)
+```python
+from amplifier_module_tool_skills import SkillsTool
 
-### Using Anthropic Skills
+# Create tool
+tool = SkillsTool(config={}, coordinator=None)
+
+# List all skills
+result = await tool.execute({"list": True})
+# Returns: {"message": "...", "skills": [{"name": "...", "description": "..."}]}
+
+# Search for skills
+result = await tool.execute({"search": "python"})
+# Returns: {"message": "...", "matches": [{"name": "python-standards", ...}]}
+
+# Get metadata
+result = await tool.execute({"info": "python-standards"})
+# Returns: {"name": "...", "description": "...", "version": "...", ...}
+
+# Load skill content
+result = await tool.execute({"skill_name": "python-standards"})
+# Returns: {"content": "# python-standards\n\n...", "skill_directory": "/path/to/skill"}
+```
+
+### In Profile
+
+```markdown
+---
+profile:
+  name: module-creator
+  description: Creates new Amplifier modules
+
+tools:
+  - module: tool-filesystem
+  - module: tool-bash
+  - module: tool-skills
+---
+
+You are an Amplifier module creator.
+
+Before creating modules:
+1. Call load_skill(list=true) to see available guidelines
+2. Load module-development skill for patterns
+3. Follow the guidance from the skill
+```
+
+### Agent Workflow
+
+```
+User: "Create a new tool module for database access"
+
+Agent calls: load_skill(search="module")
+Response: "**module-development**: Guide for creating modules..."
+
+Agent calls: load_skill(skill_name="module-development")
+Response: [Full guide with protocols, entry points, patterns]
+
+Agent: Creates module following the skill's patterns
+```
+
+## Quick Start with Anthropic Skills
 
 ```bash
-# Clone Anthropic's skills repository
+# 1. Clone Anthropic's skills repository
 git clone https://github.com/anthropics/skills ~/anthropic-skills
 
-# Add to your settings
+# 2. Configure in settings.yaml
 cat >> ~/.amplifier/settings.yaml << 'EOF'
+sources:
+  tool-skills: git+https://github.com/microsoft/amplifier-module-tool-skills@main
+
 skills:
   dirs:
     - ~/anthropic-skills/skills
     - ~/.amplifier/skills
 EOF
-```
 
-All skills from both directories become available to the agent.
+# 3. Add tool to your profile
+# In profile frontmatter:
+# tools:
+#   - module: tool-skills
+
+# 4. Use in any session
+amplifier run "List available skills"
+```
 
 ## Skills Directory Structure
 
@@ -214,16 +227,14 @@ skills-directory/
     └── SKILL.md
 ```
 
-Default location: `.amplifier/skills/` (can configure multiple directories)
-
 ## SKILL.md Format
 
-Skills use the [Anthropic Skills format](https://github.com/anthropics/skills) - YAML frontmatter with markdown body:
+Skills use YAML frontmatter with markdown body:
 
 ```markdown
 ---
 name: skill-name  # Required: unique identifier (lowercase with hyphens)
-description: What this skill does and when to use it  # Required: complete explanation
+description: What this skill does and when to use it  # Required
 version: 1.0.0
 license: MIT
 metadata:  # Optional
@@ -248,104 +259,12 @@ Instructions the agent follows when skill is loaded.
 [Concrete examples]
 ```
 
-**Required fields:** `name` and `description` in YAML frontmatter
-**Format:** See [Anthropic Skills specification](https://github.com/anthropics/skills) for complete details
-
-## Usage Examples
-
-### In Profile Definition
-
-```markdown
----
-profile:
-  name: module-creator
-  description: Creates new Amplifier modules
-
-tools:
-  - module: tool-filesystem
-  - module: tool-bash
-  - module: tool-skills
----
-
-You are an Amplifier module creator.
-
-Before creating modules:
-1. Call load_skill(list=true) to see available guidelines
-2. Load module-development skill for patterns
-3. Follow the guidance from the skill
-
-Skills are configured globally in ~/.amplifier/settings.yaml
-```
-
-### Agent Workflow
-
-```
-User: "Create a new tool module for database access"
-
-Agent thinks: "I should check for module development guidelines"
-
-Agent calls: load_skill(search="module")
-Response: "**module-development**: Guide for creating modules..."
-
-Agent calls: load_skill(skill_name="module-development")
-Response: [Full guide with protocols, entry points, patterns]
-
-Agent uses: Creates module following the skill's patterns
-```
-
-### Progressive Loading Example
-
-```python
-# Small footprint initially - just metadata
-result = await tool.execute({"list": True})
-# Returns: ~300 tokens (list of 3 skills)
-
-# Load only what's needed
-result = await tool.execute({"skill_name": "python-standards"})
-# Returns: ~2000 tokens (full skill content)
-
-# Agent can then read references directly via filesystem
-# .amplifier/skills/python-standards/async-patterns.md
-# Only loaded if agent needs it
-```
-
-## Integration with context-skills (Optional)
-
-**Advanced:** Use with `amplifier-module-context-skills` for automatic skills metadata injection.
-
-The `context-skills` module wraps your context manager and automatically shows available skills in the system message without requiring the agent to call `load_skill(list=true)` first.
-
-```yaml
-# In profile with context-skills
-session:
-  context:
-    module: context-skills
-    config:
-      base_context: context-simple
-      auto_inject_metadata: true
-
-tools:
-  - module: tool-skills  # Reads from settings.yaml
-```
-
-**How they work together:**
-1. Both modules read skills directories from `settings.yaml`
-2. Context auto-injects skills list into system message
-3. Tool provides `load_skill` for on-demand full content loading
-4. Context tracks loaded skills (prevents redundant loading)
-
-**When to use context-skills:**
-- You want skills visible in system message automatically
-- You don't want to spend the first tool call on listing skills
-
-**When to use tool-skills alone (recommended):**
-- Simpler setup (one module instead of two)
-- Agent calls `load_skill(list=true)` first (one tool call)
-- Most use cases don't need auto-injection
+**Required fields:** `name` and `description` in YAML frontmatter  
+**Format:** See [Anthropic Skills specification](https://github.com/anthropics/skills)
 
 ## Creating Skills
 
-### Simple Skill Example
+### Simple Skill
 
 ```bash
 mkdir -p .amplifier/skills/my-skill
@@ -398,10 +317,14 @@ description: Advanced patterns
 - See examples.md for complete examples
 EOF
 
-# Reference files (loaded on-demand)
+# Reference files (loaded on-demand by agent using read_file)
 echo "# Patterns Guide" > patterns.md
 echo "# Examples" > examples.md
 ```
+
+## Advanced Integration
+
+**Optional:** Use with `amplifier-module-context-skills` to auto-inject skills metadata into the system message. Most use cases don't need this - the agent can call `load_skill(list=true)` as its first action. See [amplifier-module-context-skills](https://github.com/robotdad/amplifier-module-context-skills) for details.
 
 ## Testing
 
@@ -425,12 +348,9 @@ If you're developing the tool-skills module itself:
 **Option 1: Source Override (Recommended)**
 
 ```bash
-# Add local source override
-amplifier source add tool-skills "file://$(pwd)"
-
-# Or edit ~/.amplifier/settings.yaml manually:
-# sources:
-#   tool-skills: file:///absolute/path/to/amplifier-module-tool-skills
+# Add to ~/.amplifier/settings.yaml
+sources:
+  tool-skills: file:///absolute/path/to/amplifier-module-tool-skills
 ```
 
 **Option 2: Workspace Convention**
@@ -439,9 +359,6 @@ amplifier source add tool-skills "file://$(pwd)"
 # In your development workspace
 mkdir -p .amplifier/modules
 ln -s /path/to/amplifier-module-tool-skills .amplifier/modules/tool-skills
-
-# Module automatically discovered
-amplifier module show tool-skills
 ```
 
 **Option 3: Environment Variable (Temporary)**
@@ -475,9 +392,29 @@ uv run pyright
 
 ## Contributing
 
-See main Amplifier repository for contribution guidelines.
+> [!NOTE]
+> This project is not currently accepting external contributions, but we're actively working toward opening this up. We value community input and look forward to collaborating in the future. For now, feel free to fork and experiment!
+
+Most contributions require you to agree to a
+Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
+the rights to use your contribution. For details, visit [Contributor License Agreements](https://cla.opensource.microsoft.com).
+
+When you submit a pull request, a CLA bot will automatically determine whether you need to provide
+a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
+provided by the bot. You will only need to do this once across all repos using our CLA.
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofduct/).
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+## Trademarks
+
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
+trademarks or logos is subject to and must follow
+[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/legal/intellectualproperty/trademarks/usage/general).
+Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
+Any use of third-party trademarks or logos are subject to those third-party's policies.
 
 ## License
 
 MIT
-
