@@ -62,14 +62,45 @@ class SkillsTool:
     """Tool for loading domain knowledge from skills."""
 
     name = "load_skill"
-    description = (
-        "Load domain knowledge from an available skill. Skills provide "
-        "specialized knowledge, workflows, best practices, and standards. "
-        "Use when you need domain expertise, coding guidelines, or "
-        "architectural patterns. Call with list=true to see all skills. "
-        "When loaded, returns skill_directory path - use this to read companion "
-        "files referenced in the skill (e.g., skill_directory + '/reference/file.md')."
-    )
+    description = """
+Load domain knowledge from an available skill. Skills provide specialized knowledge, workflows, 
+best practices, and standards. Use when you need domain expertise, coding guidelines, or 
+architectural patterns.
+
+Operations:
+
+**List all skills:**
+  load_skill(list=True)
+  Returns a formatted list of all available skills with descriptions.
+
+**Search for skills:**
+  load_skill(search="pattern")
+  Filters skills by name or description matching the search term.
+
+**Get skill metadata:**
+  load_skill(info="skill-name")
+  Returns metadata (name, description, version, license, path) without loading full content.
+  Use this to check details before loading or when you just need basic information.
+
+**Load full skill content:**
+  load_skill(skill_name="skill-name")
+  Loads the complete skill content into context. Returns skill_directory path for accessing
+  companion files referenced in the skill.
+
+Usage Guidelines:
+- Start tasks by listing or searching skills to discover relevant domain knowledge
+- Use info operation to check skills before loading to conserve context
+- Skills may reference companion files - use the returned skill_directory path with read_file tool
+  Example: If skill returns skill_directory="/path/to/skill", you can read companion files with
+  read_file(skill_directory + "/examples/code.py")
+- Skills complement but don't replace documentation or web search - use for standardized workflows
+  and best practices specific to the skill domain
+
+Skill Discovery:
+- Skills are discovered from configured directories (workspace, user, or custom paths)
+- First-match-wins priority if same skill exists in multiple directories
+- Workspace skills (.amplifier/skills/) override user skills (~/.amplifier/skills/)
+"""
 
     def __init__(self, config: dict[str, Any], coordinator: "ModuleCoordinator | None" = None):
         """Initialize skills tool.
