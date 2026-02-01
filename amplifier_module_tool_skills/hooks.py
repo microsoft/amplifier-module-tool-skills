@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class SkillsVisibilityHook:
     """Hook that injects available skills list into context before each LLM call.
 
-    This follows the Anthropic Skills specification recommendation to inject
+    This follows the Agent Skills specification recommendation to inject
     skill metadata into context, enabling progressive disclosure:
     - Level 1 (Always visible): Metadata via this hook
     - Level 2 (On demand): Full content via load_skill tool

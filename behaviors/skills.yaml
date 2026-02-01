@@ -1,7 +1,7 @@
 bundle:
   name: skills-behavior
   version: 1.0.0
-  description: Anthropic Skills support with progressive disclosure and automatic visibility
+  description: Agent Skills support with progressive disclosure and automatic visibility
 
 tools:
   - module: tool-skills

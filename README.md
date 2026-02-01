@@ -4,7 +4,7 @@ Modular capability that adds skill-based domain knowledge loading to Amplifier b
 
 ## Overview
 
-This module provides a progressive disclosure knowledge system for Amplifier agents. Skills are reusable knowledge packages that provide specialized expertise, workflows, and best practices following the [Anthropic Skills](https://github.com/anthropics/skills) format.
+This module provides a progressive disclosure knowledge system for Amplifier agents. Skills are reusable knowledge packages that provide specialized expertise, workflows, and best practices following the [Agent Skills](https://agentskills.io) open standard.
 
 **What You Get:**
 - 🛠️ **load_skill tool** - Load domain knowledge from skill packages
@@ -105,11 +105,11 @@ amplifier run "What skills are available?"
 
 The agent will see available skills automatically - no need to call `load_skill(list=true)` first!
 
-### 4. Optional: Add Anthropic Skills Library
+### 4. Optional: Add Community Skills
 
 ```bash
-# Clone Anthropic's skills repository
-git clone https://github.com/anthropics/skills ~/anthropic-skills
+# Clone example skills repository
+git clone https://github.com/anthropics/skills ~/community-skills
 
 # Configure in settings.yaml (see Configuration section)
 ```
@@ -128,7 +128,7 @@ sources:
 # Skills directories - applies to all bundles
 skills:
   dirs:
-    - ~/anthropic-skills/skills  # Optional: Anthropic's skills collection
+    - ~/community-skills/skills   # Optional: Community skills collection
     - ~/.amplifier/skills         # User-specific skills
 ```
 
@@ -153,7 +153,7 @@ tools:
     config:
       skills_dirs:
         - .amplifier/skills          # Project skills
-        - ~/anthropic-skills/skills  # Anthropic library
+        - ~/community-skills/skills   # Community library
         - ~/my-custom-skills         # Your skills
       visibility:
         enabled: true                # Show skills automatically (default: true)
@@ -190,15 +190,15 @@ skills:
     - git+https://github.com/team/skills@main  # Shared team skills
 ```
 
-**Example: Using Anthropic's Skills Library**
+**Example: Using Community Skills**
 
-Instead of cloning the repository locally:
+Instead of cloning a repository locally:
 
 ```yaml
 # In ~/.amplifier/settings.yaml
 skills:
   dirs:
-    - git+https://github.com/anthropics/skills@main
+    - git+https://github.com/anthropics/skills@main  # Example community skills
     - ~/.amplifier/skills  # Your custom skills
 ```
 
@@ -304,7 +304,7 @@ result = await tool.execute({"skill_name": "python-standards"})
 
 ### Skills Directory Structure
 
-Skills follow the [Anthropic Skills format](https://github.com/anthropics/skills):
+Skills follow the [Agent Skills format](https://agentskills.io/specification):
 
 ```
 skills-directory/
@@ -353,7 +353,7 @@ Instructions the agent follows when skill is loaded.
 ```
 
 **Required fields:** `name` and `description` in YAML frontmatter  
-**Format:** See [Anthropic Skills specification](https://github.com/anthropics/skills)
+**Format:** See [Agent Skills specification](https://agentskills.io/specification)
 
 ### Creating a Simple Skill
 

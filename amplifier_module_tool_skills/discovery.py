@@ -14,7 +14,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# Pattern for valid skill names per Anthropic Skills Spec
+# Pattern for valid skill names per Agent Skills Spec
 VALID_NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
@@ -22,7 +22,7 @@ VALID_NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 class SkillMetadata:
     """Metadata from a SKILL.md file's YAML frontmatter.
 
-    Follows Anthropic Skills Specification:
+    Follows the Agent Skills Specification:
     https://agentskills.io/specification
 
     Required fields: name, description
@@ -147,7 +147,7 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
                 )
                 continue
 
-            # Validate field lengths (per Anthropic Skills Spec)
+            # Validate field lengths (per Agent Skills Spec)
             if len(name) > 64:
                 logger.warning(
                     f"Skill '{name}' at {skill_file} exceeds 64 character name limit "
@@ -159,7 +159,7 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
                     f"({len(description)} chars). Continuing with discovery."
                 )
 
-            # Validate name format (per Anthropic Skills Spec)
+            # Validate name format (per Agent Skills Spec)
             if not VALID_NAME_PATTERN.match(name):
                 logger.warning(
                     f"Skill '{name}' at {skill_file} has invalid name format. "
@@ -167,18 +167,18 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
                     f"Continuing with discovery."
                 )
 
-            # Validate directory name matches skill name (per Anthropic Skills Spec)
+            # Validate directory name matches skill name (per Agent Skills Spec)
             parent_dir_name = skill_file.parent.name
             if name != parent_dir_name:
                 logger.warning(
                     f"Skill '{name}' at {skill_file} has mismatched directory name. "
                     f"Expected directory '{name}', but found '{parent_dir_name}'. "
-                    f"Per Anthropic Skills Spec, the skill name should match the directory name. "
+                    f"Per Agent Skills Spec, the skill name should match the directory name. "
                     f"Continuing with discovery."
                 )
 
             # Parse allowed-tools (note: YAML uses hyphen, Python uses underscore)
-            # Can be list or space-delimited string per Anthropic Skills Spec
+            # Can be list or space-delimited string per Agent Skills Spec
             allowed_tools_raw = frontmatter.get("allowed-tools")
             allowed_tools = None
             if allowed_tools_raw:
