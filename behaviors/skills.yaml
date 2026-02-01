@@ -23,3 +23,8 @@ tools:
         max_skills_visible: 50     # Limit for large skill sets (default: 50)
         ephemeral: true            # Don't persist in history (default: true)
         priority: 20               # Hook execution priority (default: 20)
+
+# Context instructions for bundles that include this behavior
+context:
+  include:
+    - skills:context/skills-instructions.md

@@ -4,7 +4,7 @@ You have access to the skills system for loading domain knowledge packages.
 
 ## What Are Skills?
 
-Skills are domain knowledge packages following the [Anthropic Skills specification](https://github.com/anthropics/skills). They provide structured information through progressive disclosure:
+Skills are domain knowledge packages following the [Anthropic Skills specification](https://agentskills.io/specification). They provide structured information through progressive disclosure:
 
 - **Level 1 (Metadata)**: Name + description (~100 tokens) - always visible via list/search
 - **Level 2 (Content)**: Full markdown body (~1-5k tokens) - loaded on demand

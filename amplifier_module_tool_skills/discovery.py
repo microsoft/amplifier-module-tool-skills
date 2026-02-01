@@ -147,6 +147,18 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
                 )
                 continue
 
+            # Validate field lengths (per Anthropic Skills Spec)
+            if len(name) > 64:
+                logger.warning(
+                    f"Skill '{name}' at {skill_file} exceeds 64 character name limit "
+                    f"({len(name)} chars). Continuing with discovery."
+                )
+            if len(description) > 1024:
+                logger.warning(
+                    f"Skill '{name}' at {skill_file} exceeds 1024 character description limit "
+                    f"({len(description)} chars). Continuing with discovery."
+                )
+
             # Validate name format (per Anthropic Skills Spec)
             if not VALID_NAME_PATTERN.match(name):
                 logger.warning(
@@ -182,6 +194,11 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
 
             # Parse compatibility field (optional, max 500 chars per spec)
             compatibility = frontmatter.get("compatibility")
+            if compatibility and len(compatibility) > 500:
+                logger.warning(
+                    f"Skill '{name}' at {skill_file} exceeds 500 character compatibility limit "
+                    f"({len(compatibility)} chars). Continuing with discovery."
+                )
 
             # Parse hooks field (Claude Code-compatible format)
             # Skills can embed hooks that activate when the skill is loaded
