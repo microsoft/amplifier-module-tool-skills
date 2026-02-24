@@ -94,7 +94,7 @@ async def _resolve_skill_sources(
     if has_remote:
         # Resolve all sources (handles both local and remote)
         logger.info(f"Resolving {len(sources)} skill sources (includes remote)")
-        return await resolve_skill_sources(sources)
+        resolved = await resolve_skill_sources(sources)
     else:
         # All local - just expand paths
         resolved = []
@@ -104,7 +104,20 @@ async def _resolve_skill_sources(
                 resolved.append(path)
             else:
                 logger.debug(f"Local skill source does not exist: {path}")
-        return resolved if resolved else get_default_skills_dirs()
+
+    # Always include default directories (workspace .amplifier/skills/ and
+    # user ~/.amplifier/skills/) as additional sources.  When multiple bundle
+    # layers declare tool-skills with different config.skills lists, only one
+    # config survives the merge.  Without this, workspace-local skills are
+    # silently dropped whenever another layer (e.g. superpowers) provides
+    # explicit remote sources.
+    for default_dir in get_default_skills_dirs():
+        default_resolved = default_dir.expanduser().resolve()
+        if default_resolved.exists() and default_resolved not in resolved:
+            resolved.append(default_resolved)
+            logger.debug(f"Added default skill directory: {default_resolved}")
+
+    return resolved if resolved else get_default_skills_dirs()
 
 
 async def mount(
