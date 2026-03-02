@@ -167,9 +167,16 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
                     f"Continuing with discovery."
                 )
 
-            # Validate directory name matches skill name (per Agent Skills Spec)
+            # Validate directory name matches skill name (per Agent Skills Spec).
+            # Tolerate cache-suffixed directories (e.g., "my-skill-f6de49e2167df367")
+            # created by sources.py for collision-safe remote skill caching.
             parent_dir_name = skill_file.parent.name
-            if name != parent_dir_name:
+            _is_cache_dir = (
+                parent_dir_name.startswith(f"{name}-")
+                and len(parent_dir_name) == len(name) + 17  # "-" + 16 hex chars
+                and all(c in "0123456789abcdef" for c in parent_dir_name[len(name) + 1 :])
+            )
+            if name != parent_dir_name and not _is_cache_dir:
                 logger.warning(
                     f"Skill '{name}' at {skill_file} has mismatched directory name. "
                     f"Expected directory '{name}', but found '{parent_dir_name}'. "

@@ -56,16 +56,18 @@ async def _resolve_skill_sources(
         elif isinstance(skills_config, list):
             sources = list(skills_config)
 
-    # 2. Check legacy 'skills_dirs' config
-    elif "skills_dirs" in config:
+    # 2. Check 'skills_dirs' config (local directories).
+    # When 'skills' is present, skills_dirs is ADDITIVE (not exclusive).
+    # This allows git URL sources + local directory sources to coexist.
+    if "skills_dirs" in config:
         dirs = config["skills_dirs"]
-        if isinstance(dirs, str):
-            sources = [dirs]
-        else:
-            sources = list(dirs)
+        extra = [dirs] if isinstance(dirs, str) else list(dirs)
+        for d in extra:
+            if d not in sources:
+                sources.append(d)
 
-    # 3. Check legacy 'skills_dir' config
-    elif "skills_dir" in config:
+    # 3. Check legacy 'skills_dir' config (kept for backward compat, not additive)
+    elif not sources and "skills_dir" in config:
         sources = [config["skills_dir"]]
 
     # 4. Check global/project settings via coordinator
@@ -94,7 +96,9 @@ async def _resolve_skill_sources(
     if has_remote:
         # Resolve all sources (handles both local and remote)
         logger.info(f"Resolving {len(sources)} skill sources (includes remote)")
-        return await resolve_skill_sources(sources)
+        cache_dir = config.get("cache_dir")
+        cache_path = Path(cache_dir).expanduser() if cache_dir else None
+        return await resolve_skill_sources(sources, cache_dir=cache_path)
     else:
         # All local - just expand paths
         resolved = []
