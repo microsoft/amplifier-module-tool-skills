@@ -42,15 +42,27 @@ class SkillsVisibilityHook:
 
         Event: provider:request (before each LLM call)
 
+        Skips injection for sub-agent sessions (those with a parent_id).
+        Sub-agents should call load_skill() explicitly when needed rather than
+        receiving the full list injected every turn — this reduces compaction
+        pressure in nested sessions.
+
         Args:
             event: Event name (should be "provider:request")
             data: Event data dictionary
 
         Returns:
             HookResult with action="inject_context" if skills should be shown,
-            or action="continue" if disabled or no skills available
+            or action="continue" if disabled, no skills available, or sub-agent
         """
         if not self.enabled or not self.skills:
+            return HookResult(action="continue")
+
+        # Skip injection for sub-agents — they have a parent session and don't
+        # benefit from the ambient skills list on every turn.  They can use
+        # load_skill(list=True) or load_skill(skill_name=...) explicitly.
+        if data.get("session", {}).get("parent_id"):
+            logger.debug("Skipping skills injection for sub-agent session")
             return HookResult(action="continue")
 
         skills_text = self._format_skills_list()
