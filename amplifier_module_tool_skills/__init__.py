@@ -94,7 +94,7 @@ async def _resolve_skill_sources(
     if has_remote:
         # Resolve all sources (handles both local and remote)
         logger.info(f"Resolving {len(sources)} skill sources (includes remote)")
-        return await resolve_skill_sources(sources)
+        resolved = await resolve_skill_sources(sources)
     else:
         # All local - just expand paths
         resolved = []
@@ -104,7 +104,20 @@ async def _resolve_skill_sources(
                 resolved.append(path)
             else:
                 logger.debug(f"Local skill source does not exist: {path}")
-        return resolved if resolved else get_default_skills_dirs()
+        if not resolved:
+            return get_default_skills_dirs()
+
+    # Append default directories if requested by config.
+    # This allows behaviors to opt in to workspace/user skill discovery
+    # alongside explicitly configured sources (e.g., remote git URLs).
+    if config.get("include_defaults", False):
+        for default_dir in get_default_skills_dirs():
+            default_path = default_dir.expanduser().resolve()
+            if default_path.exists() and default_path not in resolved:
+                resolved.append(default_path)
+                logger.debug(f"Including default skill directory: {default_path}")
+
+    return resolved
 
 
 async def mount(
@@ -121,6 +134,9 @@ async def mount(
             Example: ["~/.amplifier/skills", "git+https://github.com/org/skills@main"]
         skills_dirs: Legacy alias for skills (local paths only)
         skills_dir: Legacy single directory option
+        include_defaults: When True, append default skill directories
+            (workspace .amplifier/skills/, user ~/.amplifier/skills/) alongside
+            explicitly configured sources. Default: False.
 
     Returns:
         Async cleanup function that emits skill:unloaded events
