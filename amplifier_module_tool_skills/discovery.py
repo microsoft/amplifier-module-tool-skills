@@ -6,6 +6,7 @@ Shared utilities for finding and parsing SKILL.md files.
 import logging
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -129,7 +130,12 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
         return skills
 
     # Scan for SKILL.md files (recursive)
-    for skill_file in skills_dir.glob("**/SKILL.md"):
+    # Python 3.13+ changed Path.glob() to not follow symlinks by default.
+    # Pass recurse_symlinks=True on 3.13+ to traverse symlinked skill dirs.
+    glob_kwargs: dict[str, bool] = {}
+    if sys.version_info >= (3, 13):
+        glob_kwargs["recurse_symlinks"] = True
+    for skill_file in skills_dir.glob("**/SKILL.md", **glob_kwargs):
         try:
             # Parse frontmatter
             frontmatter = parse_skill_frontmatter(skill_file)

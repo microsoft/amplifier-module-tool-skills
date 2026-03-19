@@ -1,5 +1,6 @@
 """Tests for skill discovery."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -91,3 +92,28 @@ def test_discover_skills_nonexistent():
     """Test discovering from non-existent directory."""
     skills = discover_skills(Path("/nonexistent/path"))
     assert len(skills) == 0
+
+
+def test_discover_skills_through_symlink(tmp_path: Path):
+    """Skill directories that are symlinks must be traversed.
+
+    Python 3.13 changed Path.glob() to not follow symlinks by default.
+    This test ensures discover_skills() finds skills inside symlinked
+    subdirectories on all supported Python versions.
+    """
+    # Create the canonical skill location outside the scan directory
+    canonical = tmp_path / "canonical" / "my-skill"
+    canonical.mkdir(parents=True)
+    (canonical / "SKILL.md").write_text(
+        "---\nname: my-skill\ndescription: A symlinked skill\n---\nBody\n"
+    )
+
+    # Create the scan directory with a symlink to the canonical location
+    scan_dir = tmp_path / "skills"
+    scan_dir.mkdir()
+    os.symlink(canonical, scan_dir / "my-skill")
+
+    skills = discover_skills(scan_dir)
+    assert "my-skill" in skills, (
+        f"Skill in symlinked directory not discovered. Found: {list(skills.keys())}"
+    )
