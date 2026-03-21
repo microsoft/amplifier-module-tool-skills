@@ -140,21 +140,25 @@ async def _resolve_remote_source(source: str, cache_dir: Path) -> Path | None:
                 shutil.rmtree(cache_path, ignore_errors=True)
             return None
 
-        # Write cache metadata so `amplifier update` can track and refresh this cache
+        # Write cache metadata so `amplifier update` can track and refresh this cache.
+        # Both git rev-parse and metadata write use synchronous subprocess to
+        # avoid a crash window: if an async yield point (await) sits between
+        # clone and metadata write, asyncio.CancelledError can interrupt
+        # (it's a BaseException, not caught by `except Exception`), leaving
+        # a cloned directory without metadata that appears "corrupt" on the
+        # next startup.
         import json as _json
         from datetime import datetime
 
-        _sha_result = await asyncio.create_subprocess_exec(
-            "git",
-            "rev-parse",
-            "HEAD",
+        _sha_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
             cwd=str(cache_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
-        _sha_stdout, _ = await _sha_result.communicate()
         _commit_sha = (
-            _sha_stdout.decode().strip() if _sha_result.returncode == 0 else ""
+            _sha_result.stdout.strip() if _sha_result.returncode == 0 else ""
         )
         _meta = {
             "cached_at": datetime.now().isoformat(),
