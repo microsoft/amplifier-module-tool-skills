@@ -182,3 +182,118 @@ def test_symlink_outside_boundary_is_skipped(tmp_path: Path):
         f"Evil skill via symlink escape was discovered but should have been blocked. "
         f"Found: {list(skills.keys())}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for git-repo-root boundary (fixes #160)
+# ---------------------------------------------------------------------------
+
+
+def test_symlink_within_repo_root_but_outside_skills_dir_is_allowed(tmp_path: Path):
+    """Symlinks that escape the skills dir but stay within the git repo are allowed.
+
+    This is the cross-harness pattern:
+        repo-root/
+          skills/my-skill/SKILL.md           <- canonical source
+          .amplifier/skills/my-skill -> ../../skills/my-skill   <- symlink
+
+    With the git-repo boundary the symlink should be traversed because both the
+    symlink and its target live inside the same repository.
+    """
+    # Simulate a git repo root with a .git marker
+    repo_root = tmp_path / "my-repo"
+    repo_root.mkdir()
+    (repo_root / ".git").mkdir()  # presence of .git/ is all _find_repo_root needs
+
+    # Canonical skill location — inside repo but OUTSIDE the skills_dir
+    canonical = repo_root / "skills" / "my-skill"
+    canonical.mkdir(parents=True)
+    (canonical / "SKILL.md").write_text(
+        "---\nname: my-skill\ndescription: Cross-harness skill\n---\nBody\n"
+    )
+
+    # skills_dir is .amplifier/skills/ — the Amplifier scan root
+    skills_dir = repo_root / ".amplifier" / "skills"
+    skills_dir.mkdir(parents=True)
+
+    # Symlink inside skills_dir pointing to canonical (../.. escapes skills_dir,
+    # but the resolved path is still within repo_root)
+    os.symlink(canonical, skills_dir / "my-skill")
+
+    skills = discover_skills(skills_dir)
+    assert "my-skill" in skills, (
+        f"Cross-harness skill via intra-repo symlink was blocked but should be allowed. "
+        f"Found: {list(skills.keys())}"
+    )
+
+
+def test_symlink_outside_repo_root_is_blocked(tmp_path: Path):
+    """Symlinks that resolve outside the git repository root must be blocked.
+
+    Even when a git repo is detected, symlinks that point entirely outside the
+    repo boundary (e.g., pointing to /etc or a sibling directory on the filesystem)
+    must not be traversed.
+    """
+    # Simulate a git repo
+    repo_root = tmp_path / "my-repo"
+    repo_root.mkdir()
+    (repo_root / ".git").mkdir()
+
+    skills_dir = repo_root / ".amplifier" / "skills"
+    skills_dir.mkdir(parents=True)
+
+    # Canonical skill OUTSIDE the repo root entirely
+    outside_root = tmp_path / "outside-repo"
+    outside_root.mkdir()
+    evil_skill = outside_root / "evil-skill"
+    evil_skill.mkdir()
+    (evil_skill / "SKILL.md").write_text(
+        "---\nname: evil-skill\ndescription: Should not be discovered\n---\nBody\n"
+    )
+
+    # Symlink inside skills_dir pointing outside the repo
+    os.symlink(outside_root, skills_dir / "escape")
+
+    skills = discover_skills(skills_dir)
+    assert "evil-skill" not in skills, (
+        f"Skill outside repo root was discovered but should have been blocked. "
+        f"Found: {list(skills.keys())}"
+    )
+
+
+def test_non_git_dir_symlink_outside_skills_dir_is_blocked(tmp_path: Path):
+    """Non-git directory falls back to strict skills_dir boundary check.
+
+    When there is no git repository, the original strict boundary (skills_dir
+    itself) is used, blocking any symlink that resolves outside it.
+    """
+    # No .git anywhere — tmp_path is the scan root
+    skills_base = tmp_path / "skills"
+    skills_base.mkdir()
+
+    legit_skill = skills_base / "legit-skill"
+    legit_skill.mkdir()
+    (legit_skill / "SKILL.md").write_text(
+        "---\nname: legit-skill\ndescription: A legitimate skill\n---\nBody\n"
+    )
+
+    # Outside directory (no git in sight)
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    evil_skill = outside_dir / "evil-skill"
+    evil_skill.mkdir()
+    (evil_skill / "SKILL.md").write_text(
+        "---\nname: evil-skill\ndescription: Should not be discovered\n---\nBody\n"
+    )
+
+    os.symlink(outside_dir, skills_base / "escape")
+
+    skills = discover_skills(skills_base)
+
+    assert "legit-skill" in skills, (
+        f"Legitimate skill was not discovered. Found: {list(skills.keys())}"
+    )
+    assert "evil-skill" not in skills, (
+        f"Evil skill escaped non-git strict boundary but should be blocked. "
+        f"Found: {list(skills.keys())}"
+    )

@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 VALID_NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
+def _find_repo_root(path: Path) -> Path | None:
+    """Walk up from path to find the git repository root."""
+    current = path.resolve()
+    while current != current.parent:
+        if (current / ".git").exists():
+            return current
+        current = current.parent
+    return None
+
+
 @dataclass
 class SkillMetadata:
     """Metadata from a SKILL.md file's YAML frontmatter.
@@ -140,16 +150,23 @@ def discover_skills(skills_dir: Path) -> dict[str, SkillMetadata]:
     # Scan for SKILL.md files (recursive).
     # Use os.walk with followlinks=True to reliably traverse symlinked
     # subdirectories on all supported Python versions (3.12+).
-    # Boundary checking prevents symlink traversal outside the skills directory
-    # (e.g., a symlink evil -> /etc would otherwise index the entire /etc tree).
+    # Boundary checking prevents symlink traversal outside the allowed boundary.
+    # When a git repo is detected, symlinks may resolve anywhere within the repo
+    # root (enabling the cross-harness pattern: .amplifier/skills/my-skill ->
+    # ../../skills/my-skill).  Outside a git repo, the strict skills_dir boundary
+    # is enforced to prevent accidental traversal (e.g. a symlink evil -> /etc).
     base_resolved = skills_dir.resolve()
+    repo_root = _find_repo_root(skills_dir)
+    boundary = repo_root if repo_root is not None else base_resolved
+
     skill_files = []
     for root, _dirs, files in os.walk(skills_dir, followlinks=True):
         root_resolved = Path(root).resolve()
-        if not root_resolved.is_relative_to(base_resolved):
+        if not root_resolved.is_relative_to(boundary):
             logger.warning(
-                f"Skipping symlink that escapes skill directory boundary: {root} "
-                f"(resolves to {root_resolved}, outside {base_resolved})"
+                f"Skipping symlink that escapes "
+                f"{'repository' if repo_root else 'skill directory'} boundary: "
+                f"{root} (resolves to {root_resolved}, outside {boundary})"
             )
             continue
         if "SKILL.md" in files:
