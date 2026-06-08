@@ -356,6 +356,9 @@ Skill Discovery:
         self.config = config
         self.coordinator = coordinator
         self.loaded_skills: set[str] = set()  # Track which skills have been loaded
+        # Maps each active runtime_skill_overlay source to the skill names it
+        # injected, so mode-contributed skills can be added and later dropped.
+        self._overlay_sources: dict[str, set[str]] = {}
 
         # Use pre-resolved dirs if provided, otherwise discover from config or defaults
         if resolved_dirs is not None:
@@ -469,6 +472,47 @@ Skill Discovery:
         path = Path(source).expanduser().resolve()
         return path if path.exists() else None
 
+    async def _sync_overlay_skills(self) -> None:
+        """Merge mode-contributed skills into the live catalog (and drop revoked ones).
+
+        Foundation's RuntimeOverlay registers a ``runtime_skill_overlay`` capability:
+        a list of source strings (e.g. ``"@namespace:skills/foo"`` or a local path)
+        contributed by the ``contributes.skills`` blocks of the currently-active
+        modes. Foundation does not resolve these -- resolving and discovering them is
+        this tool's responsibility. We sync on every ``execute()`` so ``list``,
+        ``search``, ``info`` and load reflect the modes active *right now*, and the
+        skills are dropped again when their mode (and thus its overlay entry) is
+        revoked. Failures are swallowed: a broken overlay must never break the tool.
+        """
+        if self.coordinator is None:
+            return
+        try:
+            overlay = self.coordinator.get_capability("runtime_skill_overlay") or []
+        except Exception:  # pragma: no cover - defensive: capability lookup failed
+            return
+        current = {s for s in overlay if isinstance(s, str)}
+
+        # Drop skills we previously injected whose overlay entry is now gone.
+        for source in list(self._overlay_sources):
+            if source not in current:
+                for name in self._overlay_sources.pop(source):
+                    self.skills.pop(name, None)
+
+        # Add skills for overlay entries we have not resolved yet.
+        for source in sorted(current):
+            if source in self._overlay_sources:
+                continue
+            path = await self._resolve_source(source)
+            if path is None:
+                continue
+            added: set[str] = set()
+            for name, metadata in discover_skills(path).items():
+                # Existing skills win -- first match wins, mirroring `source=` merge.
+                if name not in self.skills:
+                    self.skills[name] = metadata
+                    added.add(name)
+            self._overlay_sources[source] = added
+
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         """
         Execute skill tool operation.
@@ -479,6 +523,8 @@ Skill Discovery:
         Returns:
             Tool result with skill content or list
         """
+        # Reflect skills contributed by any active mode before dispatching.
+        await self._sync_overlay_skills()
         # Source registration — resolve, discover, merge
         source_str = input.get("source")
         source_summary = None
@@ -753,7 +799,8 @@ Skill Discovery:
                     logger.debug(
                         "Fork skill %r has model_role %r but no model_role_resolver "
                         "capability is registered; falling through to parent default provider",
-                        skill_name, resolved_model_role,
+                        skill_name,
+                        resolved_model_role,
                     )
 
             # 4. Get spawn function and related context (matching delegate tool pattern)
